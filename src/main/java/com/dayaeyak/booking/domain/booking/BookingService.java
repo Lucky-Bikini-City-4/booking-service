@@ -24,6 +24,11 @@ public class BookingService {
         return bookingRepository.findById(bookingId).orElseThrow(() -> new RuntimeException("예약을 찾을수 없습니다: " + bookingId));
     }
 
+    // 디테일 호출용
+    public Booking getBookingById(Long bookingId) {
+        return findBooking(bookingId);
+    }
+
     @Transactional
     public BookingCreateResponseDto createBooking(BookingCreateRequestDto requestDto) {
         Booking booking = new Booking(requestDto);
