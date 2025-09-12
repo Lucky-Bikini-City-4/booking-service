@@ -42,6 +42,9 @@ dependencies {
 	annotationProcessor 'org.projectlombok:lombok'
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+
+    // Add hibernate-types dependency for JSON type handling
+    implementation 'com.vladmihalcea:hibernate-types-60:2.21.1' // For Hibernate 6
 }
 
 dependencyManagement {
