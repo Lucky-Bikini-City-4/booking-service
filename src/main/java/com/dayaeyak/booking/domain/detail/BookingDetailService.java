@@ -29,13 +29,13 @@ public class BookingDetailService {
     }
 
     @Transactional
-    public BookingDetailCreateResponseDto createBookingDetail(Long bookingId, BookingDetailPayload specificPayload) { // Modified signature
+    public BookingDetailCreateResponseDto createBookingDetail(Long bookingId, List<BookingDetailPayload> specificPayloads) { // Modified signature
         if (!bookingDetailRepository.findByBookingId(bookingId).isEmpty()) {
             throw new IllegalArgumentException("Booking ID " + bookingId + " already has a detail.");
         }
         BookingDetail bookingDetail = new BookingDetail(); // Create new BookingDetail
         bookingDetail.setBookingId(bookingId); // Set bookingId
-        bookingDetail.setDetails(specificPayload); // Set specificPayload
+        bookingDetail.setDetails(specificPayloads); // Set specificPayloads
         bookingDetailRepository.save(bookingDetail);
         return BookingDetailCreateResponseDto.from(bookingDetail);
     }

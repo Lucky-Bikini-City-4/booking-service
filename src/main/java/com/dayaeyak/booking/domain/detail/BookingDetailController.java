@@ -18,6 +18,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.ArrayList;
 import java.util.List;
 
 @RestController
@@ -55,15 +56,17 @@ public class BookingDetailController {
                 throw new IllegalArgumentException("Unsupported ServiceType: " + booking.getServiceType());
         }
 
+        List<BookingDetailPayload> specificPayloads = new ArrayList<BookingDetailPayload>();
         BookingDetailPayload specificPayload;
         try {
             specificPayload = objectMapper.convertValue(requestDto.details(), targetPayloadClass);
+            specificPayloads.add(specificPayload);
         } catch (IllegalArgumentException e) {
             throw new IllegalArgumentException("Failed to convert details payload to " + targetPayloadClass.getSimpleName() + ": " + e.getMessage());
         }
         return ApiResponse.success(HttpStatus.CREATED,
                 "예약 상세 정보가 생성되었습니다",
-                bookingDetailService.createBookingDetail(bookingId,specificPayload));
+                bookingDetailService.createBookingDetail(bookingId,specificPayloads));
     }
 
     @GetMapping("/{detailId}")

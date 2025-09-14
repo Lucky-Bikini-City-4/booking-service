@@ -11,6 +11,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 import org.hibernate.annotations.Type; // Import Type
 import com.vladmihalcea.hibernate.type.json.JsonType; // Import JsonType
@@ -19,19 +20,19 @@ import com.vladmihalcea.hibernate.type.json.JsonType; // Import JsonType
 @Setter
 @Entity
 @Table(name = "booking_details")
-@NoArgsConstructor(access = AccessLevel.PROTECTED)
+@NoArgsConstructor(access = AccessLevel.PUBLIC)
 public class BookingDetail extends BaseEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(nullable = false, updatable = false)
     private long id;
 
-    @Column(name = "booking_id", nullable = false)
+    @Column(name = "booking_id", nullable = false,unique = true)
     private Long bookingId;
 
     @Type(JsonType.class)
     @Column(name = "details", columnDefinition = "json")
-    private BookingDetailPayload details;
+    private List<BookingDetailPayload> details;
 
     public void update(BookingDetailUpdateRequestDto requestDto) {
         if (requestDto.bookingId() != null) {
@@ -42,4 +43,5 @@ public class BookingDetail extends BaseEntity {
         }
         this.updatedAt = LocalDateTime.now();
     }
+
 }
