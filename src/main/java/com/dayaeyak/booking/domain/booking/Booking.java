@@ -2,8 +2,10 @@ package com.dayaeyak.booking.domain.booking;
 
 import com.dayaeyak.booking.common.entuty.BaseEntity;
 import com.dayaeyak.booking.domain.booking.dto.request.BookingCreateRequestDto;
+import com.dayaeyak.booking.domain.booking.dto.request.BookingPerformanceRequestDto;
 import com.dayaeyak.booking.domain.booking.dto.request.BookingUpdateRequestDto;
 import jakarta.persistence.*;
+import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -13,7 +15,7 @@ import java.time.LocalDateTime;
 
 @Getter
 @Setter
-@NoArgsConstructor
+@NoArgsConstructor(access = AccessLevel.PUBLIC)
 @Table(name = "bookings")
 @Entity
 public class Booking extends BaseEntity {
@@ -50,9 +52,16 @@ public class Booking extends BaseEntity {
         this.totalFee = requestDto.totalFee();
         this.status = requestDto.status();
         this.cancelDeadline = LocalDateTime.now().plusDays(3);;
-        this.createdAt = LocalDateTime.now();
-        this.updatedAt = LocalDateTime.now();
     }
+
+//    public Booking(BookingPerformanceRequestDto requestDto) {
+//        this.userId = requestDto.userId();
+//        this.serviceId = requestDto.serviceId();
+//        this.serviceType = requestDto.serviceType();
+//        this.totalFee = requestDto.totalFee();
+//        this.status = requestDto.status();
+//        this.cancelDeadline = LocalDateTime.now().plusDays(3);;
+//    }
 
     public void update(BookingUpdateRequestDto requestDto) {
         if (requestDto.userId() != null) {
