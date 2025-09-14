@@ -2,13 +2,17 @@ package com.dayaeyak.booking.domain.booking;
 
 import com.dayaeyak.booking.domain.booking.dto.request.BookingCreateRequestDto;
 import com.dayaeyak.booking.domain.booking.dto.request.BookingFindByServiceDto;
+import com.dayaeyak.booking.domain.booking.dto.request.BookingPerformanceRequestDto;
 import com.dayaeyak.booking.domain.booking.dto.request.BookingUpdateRequestDto;
 import com.dayaeyak.booking.domain.booking.dto.response.BookingCreateResponseDto;
 import com.dayaeyak.booking.domain.booking.dto.response.BookingFindResponseDto;
-import com.dayaeyak.booking.domain.booking.enums.ServiceType;
+import com.dayaeyak.booking.domain.booking.enums.BookingStatus;
+
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.kafka.core.KafkaTemplate; // KafkaTemplate 임포트
 import org.springframework.stereotype.Service;
+import com.dayaeyak.booking.domain.detail.BookingDetailRepository; // BookingDetailRepository 임포트
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -18,6 +22,9 @@ import java.util.stream.Collectors;
 public class BookingService {
 
     private final BookingRepository bookingRepository;
+    private final KafkaTemplate<String, Object> kafkaTemplate; // KafkaTemplate 주입
+    private final BookingDetailRepository bookingDetailRepository; // BookingDetailRepository 주입
+
 
 
     private Booking findBooking(Long bookingId){
@@ -35,6 +42,16 @@ public class BookingService {
         bookingRepository.save(booking);
         return BookingCreateResponseDto.from(booking);
     }
+
+    @Transactional
+    public Booking createOrchestrationBooking(BookingCreateRequestDto requestDto) {
+        Booking booking = new Booking(requestDto);
+        bookingRepository.save(booking);
+        return booking;
+    }
+
+
+
 
     public List<BookingFindResponseDto> findBookings() {
         return bookingRepository.findAll()
@@ -65,5 +82,20 @@ public class BookingService {
                 .stream()
                 .map(BookingFindResponseDto::from)
                 .collect(Collectors.toList());
+    }
+
+    @Transactional
+    public void updateBookingStatus(Long bookingId, BookingStatus status) {
+        // This method would be called by the orchestrator for status updates only
+        Booking booking = bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new RuntimeException("Booking not found: " + bookingId));
+        booking.setStatus(status);
+        bookingRepository.save(booking);
+    }
+
+    @Transactional
+    public void confirmBooking(long bookingId) {
+        Booking booking = findBooking(bookingId);
+        booking.setStatus(BookingStatus.COMPLETED);
     }
 }
