@@ -1,13 +1,10 @@
 package com.dayaeyak.booking.domain.booking;
 
-import com.dayaeyak.booking.domain.booking.dto.request.BookingCreateRequestDto;
-import com.dayaeyak.booking.domain.booking.dto.request.BookingFindByServiceDto;
-import com.dayaeyak.booking.domain.booking.dto.request.BookingUpdateRequestDto;
+import com.dayaeyak.booking.domain.booking.dto.request.*;
 import com.dayaeyak.booking.domain.booking.dto.response.BookingCreateResponseDto;
 import com.dayaeyak.booking.domain.booking.dto.response.BookingFindResponseDto;
-import com.dayaeyak.booking.domain.booking.enums.ServiceType;
+import com.dayaeyak.booking.orchestration.BookingOrchestrator;
 import com.dayaeyak.booking.utils.ApiResponse;
-import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -21,6 +18,7 @@ import java.util.List;
 public class BookingController {
 
     private final BookingService bookingService;
+    private final BookingOrchestrator bookingOrchestrator;
 
     @PostMapping
     public ResponseEntity<ApiResponse<BookingCreateResponseDto>> createBooking(
@@ -60,6 +58,11 @@ public class BookingController {
 
     }
 
+    @PostMapping("/orchestration")
+    public ResponseEntity<ApiResponse<BookingCreateResponseDto>> orchestration(
+            @RequestBody BookingRequestDto requestDto){
+        return ApiResponse.success(HttpStatus.OK, bookingOrchestrator.orchestrateBooking(requestDto));
+    }
 
 
 

@@ -4,11 +4,12 @@ import com.dayaeyak.booking.domain.detail.BookingDetail;
 import com.dayaeyak.booking.domain.detail.payload.BookingDetailPayload;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 public record BookingDetailFindResponseDto(
         Long id,
         Long bookingId,
-        BookingDetailPayload details,
+        List<BookingDetailPayload>   details,
         LocalDateTime createdAt,
         LocalDateTime updatedAt,
         LocalDateTime deletedAt

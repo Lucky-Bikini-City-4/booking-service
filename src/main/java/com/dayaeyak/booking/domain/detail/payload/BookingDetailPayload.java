@@ -1,11 +1,14 @@
 package com.dayaeyak.booking.domain.detail.payload;
 
+import com.dayaeyak.booking.domain.booking.dto.request.BookingExhibitionRequestDto;
+import com.dayaeyak.booking.domain.booking.dto.request.BookingPerformanceRequestDto;
+import com.dayaeyak.booking.domain.booking.dto.request.BookingRestaurantRequestDto;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 
 @JsonTypeInfo(
         use = JsonTypeInfo.Id.NAME,
-        include = JsonTypeInfo.As.PROPERTY,
+        include = JsonTypeInfo.As.EXISTING_PROPERTY,
         property = "type")
 @JsonSubTypes({
         @JsonSubTypes.Type(value = ExhibitionBookingDetail.class, name = "EXHIBITION"),
