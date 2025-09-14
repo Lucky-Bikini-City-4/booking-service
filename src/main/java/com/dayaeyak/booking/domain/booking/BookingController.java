@@ -25,42 +25,38 @@ public class BookingController {
     @PostMapping
     public ResponseEntity<ApiResponse<BookingCreateResponseDto>> createBooking(
             @RequestBody BookingCreateRequestDto requestDto ) {
-        return ResponseEntity
-                .status(HttpStatus.CREATED)
-                .body(new ApiResponse<>("에약이 생성되었습니다.",bookingService.createBooking(requestDto)));
+
+        return ApiResponse.success(HttpStatus.CREATED, bookingService.createBooking(requestDto));
+
     }
 
     @GetMapping("/{bookingId}")
     public ResponseEntity<ApiResponse<BookingFindResponseDto>> getBookingById(@PathVariable Long bookingId){
-        return ResponseEntity
-                .status(HttpStatus.OK)
-                .body(new ApiResponse<>("",bookingService.findBookingById(bookingId)));
+        return ApiResponse.success(HttpStatus.OK, bookingService.findBookingById(bookingId));
     }
 
     @GetMapping
     public ResponseEntity<ApiResponse<List<BookingFindResponseDto>>> findBookings(){
-        return ResponseEntity.status(HttpStatus.OK).body(new ApiResponse<>("",bookingService.findBookings()));
+        return ApiResponse.success(HttpStatus.OK, bookingService.findBookings());
     }
 
     @PatchMapping("/{bookingId}")
     public ResponseEntity<ApiResponse<BookingFindResponseDto>> updateBooking(
             @PathVariable Long bookingId, @RequestBody BookingUpdateRequestDto requestDto) {
         bookingService.updateBooking(bookingId,requestDto);
-        return ResponseEntity.status(HttpStatus.OK).body(new ApiResponse<>("수정이 완료되었습니다.",null));
+        return ApiResponse.success(HttpStatus.OK,"수정이 완료되었습니다" );
     }
 
     @DeleteMapping("/{bookingId}")
     public ResponseEntity<ApiResponse<BookingFindResponseDto>> deleteBooking(@PathVariable Long bookingId) {
         bookingService.deleteBooking(bookingId);
-        return ResponseEntity.status(HttpStatus.OK).body(new ApiResponse<>("삭제가 완료되었습니다.",null));
+        return ApiResponse.success(HttpStatus.OK,"삭제가 완료되었습니다" );
     }
 
     @GetMapping("/search")
     public ResponseEntity<ApiResponse<List<BookingFindResponseDto>>> findBookingsByService(
             @RequestBody BookingFindByServiceDto requestDto) {
-        return ResponseEntity
-                .status(HttpStatus.OK)
-                .body(new ApiResponse<>("",bookingService.findBookingsByService(requestDto)));
+        return ApiResponse.success(HttpStatus.OK, bookingService.findBookingsByService(requestDto));
 
     }
 
