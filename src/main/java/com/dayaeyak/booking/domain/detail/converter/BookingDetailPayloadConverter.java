@@ -1,5 +1,7 @@
 package com.dayaeyak.booking.domain.detail.converter;
 
+import com.dayaeyak.booking.common.exception.CustomException;
+import com.dayaeyak.booking.common.exception.ErrorCode;
 import com.dayaeyak.booking.domain.detail.payload.BookingDetailPayload;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -36,7 +38,7 @@ public class BookingDetailPayloadConverter implements AttributeConverter<Booking
         try {
             return objectMapper.readValue(dbData, BookingDetailPayload.class);
         } catch (JsonProcessingException e) {
-            throw new IllegalArgumentException("Error converting JSON to BookingDetailPayload", e);
+            throw new CustomException(ErrorCode.INTERNAL_SERVER_ERROR);
         }
     }
 }

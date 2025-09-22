@@ -1,5 +1,7 @@
 package com.dayaeyak.booking.domain.booking;
 
+import com.dayaeyak.booking.common.exception.CustomException;
+import com.dayaeyak.booking.common.exception.ErrorCode;
 import com.dayaeyak.booking.domain.booking.dto.request.BookingCreateRequestDto;
 import com.dayaeyak.booking.domain.booking.dto.request.BookingFindByServiceDto;
 import com.dayaeyak.booking.domain.booking.dto.request.BookingPerformanceRequestDto;
@@ -22,13 +24,13 @@ import java.util.stream.Collectors;
 public class BookingService {
 
     private final BookingRepository bookingRepository;
-    private final KafkaTemplate<String, Object> kafkaTemplate; // KafkaTemplate 주입
-    private final BookingDetailRepository bookingDetailRepository; // BookingDetailRepository 주입
+    private final KafkaTemplate<String, Object> kafkaTemplate;
+    private final BookingDetailRepository bookingDetailRepository;
 
 
 
     private Booking findBooking(Long bookingId){
-        return bookingRepository.findById(bookingId).orElseThrow(() -> new RuntimeException("예약을 찾을수 없습니다: " + bookingId));
+        return bookingRepository.findById(bookingId).orElseThrow(() -> new CustomException(ErrorCode.BOOKING_NOT_FOUND));
     }
 
     // 디테일 호출용
@@ -49,9 +51,6 @@ public class BookingService {
         bookingRepository.save(booking);
         return booking;
     }
-
-
-
 
     public List<BookingFindResponseDto> findBookings() {
         return bookingRepository.findAll()
@@ -87,8 +86,7 @@ public class BookingService {
     @Transactional
     public void updateBookingStatus(Long bookingId, BookingStatus status) {
         // This method would be called by the orchestrator for status updates only
-        Booking booking = bookingRepository.findById(bookingId)
-                .orElseThrow(() -> new RuntimeException("Booking not found: " + bookingId));
+        Booking booking = findBooking(bookingId);
         booking.setStatus(status);
         bookingRepository.save(booking);
     }

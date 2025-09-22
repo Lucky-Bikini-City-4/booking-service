@@ -1,5 +1,7 @@
 package com.dayaeyak.booking.domain.detail;
 
+import com.dayaeyak.booking.common.exception.CustomException;
+import com.dayaeyak.booking.common.exception.ErrorCode;
 import com.dayaeyak.booking.domain.detail.dto.request.BookingDetailCreateRequestDto;
 import com.dayaeyak.booking.domain.detail.dto.request.BookingDetailUpdateRequestDto;
 import com.dayaeyak.booking.domain.detail.dto.response.BookingDetailCreateResponseDto;
@@ -21,9 +23,9 @@ public class BookingDetailService {
     // Modified private helper method to include bookingId validation
     private BookingDetail findBookingDetail(Long bookingId, Long id) {
         BookingDetail bookingDetail = bookingDetailRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("BookingDetail을 찾을 수 없습니다: " + id));
+                .orElseThrow(() -> new CustomException(ErrorCode.BOOKING_DETAIL_NOT_FOUND));
         if (!bookingDetail.getBookingId().equals(bookingId)) {
-            throw new IllegalArgumentException("BookingDetail with ID " + id + " does not belong to Booking ID " + bookingId);
+            throw new CustomException(ErrorCode.INVALID_INPUT_VALUE);
         }
         return bookingDetail;
     }
@@ -31,7 +33,7 @@ public class BookingDetailService {
     @Transactional
     public BookingDetailCreateResponseDto createBookingDetail(Long bookingId, List<BookingDetailPayload> specificPayloads) { // Modified signature
         if (!bookingDetailRepository.findByBookingId(bookingId).isEmpty()) {
-            throw new IllegalArgumentException("Booking ID " + bookingId + " already has a detail.");
+            throw new CustomException(ErrorCode.DUPLICATE_BOOKING_DETAIL);
         }
         BookingDetail bookingDetail = new BookingDetail(); // Create new BookingDetail
         bookingDetail.setBookingId(bookingId); // Set bookingId

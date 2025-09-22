@@ -1,5 +1,7 @@
 package com.dayaeyak.booking.domain.detail;
 
+import com.dayaeyak.booking.common.exception.CustomException;
+import com.dayaeyak.booking.common.exception.ErrorCode;
 import com.dayaeyak.booking.domain.booking.Booking;
 import com.dayaeyak.booking.domain.booking.BookingService;
 import com.dayaeyak.booking.domain.booking.enums.ServiceType;
@@ -36,7 +38,7 @@ public class BookingDetailController {
             @RequestBody BookingDetailCreateRequestDto requestDto) {
 
         if (!bookingId.equals(requestDto.bookingId())) {
-            throw new IllegalArgumentException("Booking ID in path must match Booking ID in request body.");
+            throw new CustomException(ErrorCode.INVALID_INPUT_VALUE);
         }
 
         Booking booking = bookingService.getBookingById(bookingId);
@@ -53,7 +55,7 @@ public class BookingDetailController {
                 targetPayloadClass = RestaurantBookingDetail.class;
                 break;
             default:
-                throw new IllegalArgumentException("Unsupported ServiceType: " + booking.getServiceType());
+                throw new CustomException(ErrorCode.INVALID_TYPE_VALUE);
         }
 
         List<BookingDetailPayload> specificPayloads = new ArrayList<BookingDetailPayload>();
@@ -62,7 +64,7 @@ public class BookingDetailController {
             specificPayload = objectMapper.convertValue(requestDto.details(), targetPayloadClass);
             specificPayloads.add(specificPayload);
         } catch (IllegalArgumentException e) {
-            throw new IllegalArgumentException("Failed to convert details payload to " + targetPayloadClass.getSimpleName() + ": " + e.getMessage());
+            throw new CustomException(ErrorCode.INVALID_INPUT_VALUE);
         }
         return ApiResponse.success(HttpStatus.CREATED,
                 "예약 상세 정보가 생성되었습니다",
@@ -73,14 +75,12 @@ public class BookingDetailController {
     public ResponseEntity<ApiResponse<BookingDetailFindResponseDto>> getBookingDetailById(
             @PathVariable Long bookingId,
             @PathVariable Long detailId) {
-
         return ApiResponse.success(HttpStatus.OK, bookingDetailService.findBookingDetailById(bookingId,detailId));
     }
 
     @GetMapping
     public ResponseEntity<ApiResponse<List<BookingDetailFindResponseDto>>> findAllBookingDetails(
             @PathVariable Long bookingId) {
-
         return ApiResponse.success(HttpStatus.OK, bookingDetailService.findAllBookingDetailsByBookingId(bookingId));
     }
 
@@ -100,9 +100,6 @@ public class BookingDetailController {
             @PathVariable Long detailId) {
         bookingDetailService.deleteBookingDetail(bookingId, detailId);
         return ApiResponse.success(HttpStatus.OK,"예약 상세 정보가 삭제되었습니다.");
-//        return ResponseEntity
-//                .status(HttpStatus.OK)
-//                .body(new ApiResponse<>("예약 상세 정보가 삭제되었습니다.", null));
     }
 
 

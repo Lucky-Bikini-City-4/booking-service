@@ -10,12 +10,14 @@ import com.dayaeyak.booking.client.performance.UpdateSeatSoldOutRequestDto;
 import com.dayaeyak.booking.client.restaurant.RestaurantClient;
 import com.dayaeyak.booking.client.restaurant.SeatAvailabilityDto;
 import com.dayaeyak.booking.client.restaurant.SeatsRequestDto;
-import com.dayaeyak.booking.client.test.PaymentClasdasdsaient;
 import com.dayaeyak.booking.client.test.PerformanceClient2;
+import com.dayaeyak.booking.common.exception.CustomException;
+import com.dayaeyak.booking.common.exception.ErrorCode;
 import com.dayaeyak.booking.domain.booking.Booking;
 import com.dayaeyak.booking.domain.booking.BookingService;
 import com.dayaeyak.booking.domain.booking.dto.request.*;
 import com.dayaeyak.booking.domain.booking.dto.response.BookingCreateResponseDto;
+import com.dayaeyak.booking.domain.booking.enums.BookingStatus;
 import com.dayaeyak.booking.domain.booking.enums.ServiceType;
 import com.dayaeyak.booking.domain.detail.BookingDetailService;
 import com.dayaeyak.booking.domain.detail.payload.BookingDetailPayload;
@@ -28,9 +30,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -60,6 +60,7 @@ public class BookingOrchestrator {
     private final RestaurantClient restaurantClient;
     private final RedisTemplate<String, String> redisTemplate;
     private final BookingDetailService bookingDetailService;
+
     // 보유 시간: 예시 5분 (초 단위)
     private static final long HOLD_TTL_SECONDS = 5 * 60L;
     private static final String SEAT_KEY_FORMAT = "seat:%d:%d:%d"; // seat:{sessionId}:{serviceId}:{seatNumber}
@@ -69,42 +70,34 @@ public class BookingOrchestrator {
             case PERFORMANCE -> orchestratePerformanceBooking(requestDto);
             case EXHIBITION -> orchestrateExhibitionBooking(requestDto);
             case RESTAURANT -> orchestrateRestaurantBooking(requestDto);
-            default -> throw new IllegalArgumentException("Unknown service type: " + requestDto.serviceType());
+            default -> throw new CustomException(ErrorCode.INVALID_TYPE_VALUE);
         };
     }
 
-    /**
-     * 전체 오케스트레이션 진입점
-     *
-     * 1) Redis에 seat 키들을 선점(holdToken 사용)
-     * 2) (선점 성공 시) DB에 PENDING 상태의 Booking 생성
-     * 3) Redis value를 bookingId 로 덮어쓰기 (추적성 확보)
-     * 4) 공연 서비스에 좌석 재확인 (DB 기준)
-     * 5) 결제 요청
-     * 6) 공연 서비스에 좌석 확정(판매 처리)
-     * 7) Booking 상태 CONFIRMED, Redis 키 제거, 알림 발송
-     */
-
+    //  공연 서비스 예약 메서드
     public BookingCreateResponseDto orchestratePerformanceBooking(BookingRequestDto requestDto) {
-        
+
         BookingPerformanceRequestDto performanceRequest = (BookingPerformanceRequestDto) requestDto.bookingDetailRequest();
 
         String holdToken = "HOLD:" + UUID.randomUUID();
-        List<String> lockedKeys = tryLockSeats
-                (performanceRequest.sessionId(),
-                        requestDto.serviceId(),
-                        performanceRequest.seatNumber(),
-                        holdToken);
+        List<String> lockedKeys = tryLockSeats(
+                performanceRequest.sessionId(),
+                requestDto.serviceId(),
+                performanceRequest.seatNumber(),
+                holdToken);
+
+        Booking booking = null; // booking 객체를 try 블록 외부에서 선언
+        Long paymentId = null;
+
 
         try {
+            // 1) Redis에 선점 시도 (holdToken 사용)
+            if (lockedKeys.size() != performanceRequest.seatNumber().size()) {
+                throw new CustomException(ErrorCode.SEAT_ALREADY_LOCKED);
+            }
 
-            // 1) 공연 서비스에 좌석 유효성/동시성 재확인 (DB 기준)
-//            boolean seatsAvailable = performanceClient2.checkSeatsAvailable(serviceId, seatNumbers);
-//            if (!seatsAvailable) {
-//                // 공연 DB 기준으로 이미 판매된 좌석이 있음 -> 보상 처리
-//                throw new IllegalStateException("공연 DB상 좌석이 이미 판매되어 예약 불가합니다.");
-//            }
-            for(Integer seatNumber : performanceRequest.seatNumber()) {
+            // 2) 공연 서비스에 좌석 유효성/동시성 재확인 (DB 기준)
+            for (Integer seatNumber : performanceRequest.seatNumber()) {
                 ApiResponse<SeatResponseDto> seatResponse = performanceClient.readPerformanceSeat(
                         performanceRequest.performanceId(),
                         performanceRequest.sessionId(),
@@ -112,143 +105,150 @@ public class BookingOrchestrator {
                         performanceRequest.seatId());
                 SeatResponseDto seatResponseDto = seatResponse.getData();
                 if (Boolean.TRUE.equals(seatResponseDto.isSoldOut())) {
-                    throw new IllegalStateException("이미 판매된 좌석입니다. seatNumber=" + seatNumber);
+                    throw new CustomException(ErrorCode.SEAT_ALREADY_SOLD);
                 }
             }
 
-            // 2) Redis에 선점 시도 (holdToken 사용)
-            if (lockedKeys.size() != performanceRequest.seatNumber().size()) {
-                // 부분 선점이라도 실패: 이미 선점된 좌석이 있음 -> 확보한 키들 해제 후 실패
-                releaseKeys(lockedKeys);
-                throw new IllegalStateException("선택한 좌석 중 이미 선점된 좌석이 있습니다.");
-            }
-
-            // 3) 예약(PENDING) 생성 — DB에 저장 (BookingService가 내부적으로 트랜잭션 처리)
+            // 3) 예약(PENDING) 생성
             BookingCreateRequestDto createRequestDto = new BookingCreateRequestDto(
                     requestDto.userId(),
                     requestDto.serviceId(),
                     requestDto.serviceType(),
                     requestDto.totalFee(),
                     requestDto.status());
-            Booking booking = bookingService.createOrchestrationBooking(createRequestDto);
+            booking = bookingService.createOrchestrationBooking(createRequestDto);
 
-            // 4) Redis key 값에 bookingId로 덮어쓰기 (추적성 향상)
-            writeBookingIdToLocks(lockedKeys, booking.getId());        ;
+            // 4) Redis key 값에 bookingId로 덮어쓰기
+            writeBookingIdToLocks(lockedKeys, booking.getId());
 
-            // 5) 결제 요청 api 호출 -> 메세지큐 전환
-            //PaymentClient.PaymentResult payResult = paymentClient.requestPayment(booking.getId(), userId, totalFee);
-            PaymentCreateRequestDto paymentCreateRequestDto
-                    = new PaymentCreateRequestDto(booking.getId(), PaymentStatus.PENDING,requestDto.totalFee());
+            // 5) 결제 요청
+            PaymentCreateRequestDto paymentCreateRequestDto = new PaymentCreateRequestDto(booking.getId(), PaymentStatus.PENDING, requestDto.totalFee());
             ApiResponse<PaymentRequestResponseDto> response = paymentClient.requestPayment(paymentCreateRequestDto);
             if (!response.getData().paymentStatus().equals(PaymentStatus.COMPLETED)) {
-                // 결제 실패 -> 보상
-                //compensateOnPaymentFailure(booking, lockedKeys, payResult);
-                releaseKeys(lockedKeys);
-                throw new IllegalStateException("결제 실패: 결제가 실패되었습니다. ");
+                throw new CustomException(ErrorCode.PAYMENT_FAILED);
             }
+            paymentId = response.getData().paymentId(); // 결제 ID 저장
 
-            // 6) 공연 서비스에 좌석 최종 확정 요청 (판매 처리) api 호출 -> 메세지큐 전환
-//            boolean seatMarkResult = performanceClient2.markSeatsAsSold(serviceId, seatNumbers, booking.getId());
-//            if (!seatMarkResult) {
-//                // 공연 서비스 좌석 반영 실패 -> 보상 (결제는 성공했을 수 있으므로 환불 시도)
-//                //compensateOnSeatMarkFailure(booking, lockedKeys);
-//                throw new IllegalStateException("공연 서비스 좌석 확정 실패");
-//            }
+
+            // 6) 공연 서비스에 좌석 최종 확정 요청
             UpdateSeatSoldOutRequestDto updateSeatSoldOutRequestDto = new UpdateSeatSoldOutRequestDto(true);
-            ApiResponse<SeatResponseDto> seatResponse = performanceClient
-                    .changeIsSoldOut(performanceRequest.performanceId(),
-                            performanceRequest.sessionId(),
-                            performanceRequest.sectionId(),
-                            performanceRequest.seatId(),
-                            updateSeatSoldOutRequestDto);
+            ApiResponse<SeatResponseDto> seatResponse = performanceClient.changeIsSoldOut(
+                    performanceRequest.performanceId(),
+                    performanceRequest.sessionId(),
+                    performanceRequest.sectionId(),
+                    performanceRequest.seatId(),
+                    updateSeatSoldOutRequestDto);
 
-            if (seatResponse.getData().isSoldOut() != true){
-                throw new IllegalStateException("변경에 실패했습니다.");
+            if (seatResponse.getData().isSoldOut() != true) {
+                // 이 단계의 실패는 심각한 데이터 불일치를 의미. 결제 환불 및 수동 개입 필요.
+                // TODO: 결제 환불 로직 호출
+                throw new CustomException(ErrorCode.INTERNAL_SERVER_ERROR); // 좌석 상태 변경 실패
             }
 
             // 7) Booking 확정 및 Redis 정리
-            log.info("예약 아이디 : " +booking.getId());
             bookingService.confirmBooking(booking.getId());
-            booking = bookingService.getBookingById(booking.getId()); // DB에서 최신 상태로 다시 로드
+            booking = bookingService.getBookingById(booking.getId());
             releaseKeys(lockedKeys);
 
             // 8) 디테일 저장
             List<BookingDetailPayload> payloadList = new ArrayList<>();
             LocalDateTime sessionDateTime = performanceRequest.sessionDate().atTime(performanceRequest.sessionTime());
-            for(Integer seatNumber : performanceRequest.seatNumber()) {
-                PerformanceBookingDetail payload =
-                        new PerformanceBookingDetail(ServiceType.PERFORMANCE,
-                                performanceRequest.sectionName(),
-                                seatNumber,
-                                sessionDateTime,
-                                performanceRequest.seatPrice());
+            for (Integer seatNumber : performanceRequest.seatNumber()) {
+                PerformanceBookingDetail payload = new PerformanceBookingDetail(ServiceType.PERFORMANCE,
+                        performanceRequest.sectionName(),
+                        seatNumber,
+                        sessionDateTime,
+                        performanceRequest.seatPrice());
                 payloadList.add(payload);
             }
-            bookingDetailService.createBookingDetail(booking.getId(),payloadList);
+            bookingDetailService.createBookingDetail(booking.getId(), payloadList);
 
-
-
-
-            // 알림 발송(비동기 실패는 전체 실패로 연결하지 않음)
-//            try {
-//                notificationClient.sendBookingConfirmed(userId, booking.getId());
-//            } catch (Exception e) {
-//                log.warn("알림 전송 실패(무시): bookingId={}, err={}", booking.getId(), e.getMessage());
-//            }
-
-            // 최신 Booking 반환
             return BookingCreateResponseDto.from(booking);
 
-        } catch (RuntimeException re) {
-            // 예외는 위에서 보상 처리가 이미 됐을 수 있음.
-            log.error("오케스트레이션 실패: userId={}, serviceId={}, seats={}, err={}",
-                    requestDto.userId(), requestDto.serviceId(), performanceRequest.seatNumber(), re.getMessage());
-            throw re;
         } catch (Exception ex) {
-            // 예기치 못한 예외: 보상시도 후 예외 재던짐
-            log.error("오케스트레이션에서 예기치 못한 오류: {}", ex.getMessage(), ex);
-            releaseKeys(lockedKeys);
-            throw new RuntimeException("예약 처리 중 오류가 발생했습니다.");
+            // 오케스트레이션 과정에서 발생한 모든 예외 처리
+            log.error("공연 예약 실패: userId={}, serviceId={}, err={}",
+                    requestDto.userId(), requestDto.serviceId(), ex.getMessage(), ex);
+
+            // --- 보상 트랜잭션 시작 ---
+            releaseKeys(lockedKeys); // 1. Redis 선점 해제
+
+            if (booking != null) { // 2. Booking이 생성되었다면 CANCELED로 상태 변경
+                bookingService.updateBookingStatus(booking.getId(), BookingStatus.CANCELLED);
+            }
+            
+            if (ex instanceof CustomException && ((CustomException) ex).getErrorCode() == ErrorCode.INTERNAL_SERVER_ERROR) {
+                // TODO: 좌석 확정 실패 시 결제 환불 로직을 여기에 추가해야 함
+                log.error("결제 환불이 필요한 심각한 오류 발생! bookingId: {}", booking != null ? booking.getId() : "N/A");
+            }
+            // --- 보상 트랜잭션 종료 ---
+
+            // GlobalExceptionHandler가 처리하도록 발생한 예외를 그대로 다시 던짐
+            if (ex instanceof CustomException) {
+                throw ex;
+            } else {
+                throw new CustomException(ErrorCode.INTERNAL_SERVER_ERROR, ex.getMessage());
+            }
         }
     }
 
-
     public BookingCreateResponseDto orchestrateExhibitionBooking(BookingRequestDto requestDto) {
 
-        // 1) booking 생성
+        // 1. booking 생성
         BookingCreateRequestDto createRequestDto = new BookingCreateRequestDto(
-                requestDto.userId()
-                ,requestDto.serviceId()
-                ,requestDto.serviceType()
-                ,requestDto.totalFee()
-                ,requestDto.status());
+                requestDto.userId(),
+                requestDto.serviceId(),
+                requestDto.serviceType(),
+                requestDto.totalFee(),
+                requestDto.status());
         Booking booking = bookingService.createOrchestrationBooking(createRequestDto);
 
+        Long paymentId = null; // 보상 로직을 위해 외부에 선언
 
-        // 2) 해당 정보를 가지고 결제
-        PaymentCreateRequestDto paymentCreateRequestDto
-                = new PaymentCreateRequestDto(booking.getId(), PaymentStatus.PENDING,requestDto.totalFee());
-        ApiResponse<PaymentRequestResponseDto> response = paymentClient.requestPayment(paymentCreateRequestDto);
-        if (!response.getData().paymentStatus().equals(PaymentStatus.COMPLETED)) {
-            // 결제 실패 -> 보상
-            //compensateOnPaymentFailure(booking, lockedKeys, payResult);
-            throw new IllegalStateException("결제 실패: 결제가 실패되었습니다. ");
+        try {
+            // 2. 해당 정보를 가지고 결제
+            PaymentCreateRequestDto paymentCreateRequestDto = new PaymentCreateRequestDto(booking.getId(), PaymentStatus.PENDING, requestDto.totalFee());
+            ApiResponse<PaymentRequestResponseDto> response = paymentClient.requestPayment(paymentCreateRequestDto);
+            
+            // 결제 실패 시 CustomException 발생
+            if (!response.getData().paymentStatus().equals(PaymentStatus.COMPLETED)) {
+                throw new CustomException(ErrorCode.PAYMENT_FAILED);
+            }
+            paymentId = response.getData().paymentId(); // 결제 ID 저장
+
+            // 3. 디테일 생성
+            List<BookingDetailPayload> payloadList = new ArrayList<>();
+            BookingExhibitionRequestDto exhibitionRequest = (BookingExhibitionRequestDto) requestDto.bookingDetailRequest();
+            ExhibitionBookingDetail payload = new ExhibitionBookingDetail(ServiceType.EXHIBITION, exhibitionRequest.grade(), exhibitionRequest.price());
+            payloadList.add(payload);
+            bookingDetailService.createBookingDetail(booking.getId(), payloadList);
+
+            // 4. Booking 확정
+            bookingService.confirmBooking(booking.getId()); // confirm 메서드에 paymentId도 넘겨주면 좋음
+            
+            // 최종 상태의 booking 객체를 다시 조회
+            Booking confirmedBooking = bookingService.getBookingById(booking.getId());
+            return BookingCreateResponseDto.from(confirmedBooking);
+
+        } catch (Exception ex) {
+            log.error("Exhibition booking failed for bookingId: {}. Error: {}", booking.getId(), ex.getMessage(), ex);
+
+            // [보상 트랜잭션]
+            // 결제가 생성되었다면(paymentId가 있다면), 결제 취소 요청
+            if (paymentId != null) {
+                log.warn("Compensation: Attempting to cancel payment. paymentId: {}", paymentId);
+                // 환불 기능 생성: 예약 서비스 paymentClient.cancelPayment(paymentId);
+            }
+
+            // Booking 상태를 CANCELED로 변경
+            bookingService.updateBookingStatus(booking.getId(), BookingStatus.CANCELLED);
+
+            // 일관된 예외 처리를 위해 다시 던짐
+            if (ex instanceof CustomException) {
+                throw ex;
+            }
+            throw new CustomException(ErrorCode.INTERNAL_SERVER_ERROR, ex.getMessage());
         }
-        // 3) 디테일 생성
-
-        List<BookingDetailPayload> payloadList = new ArrayList<>();
-        BookingExhibitionRequestDto exhibitionRequest = (BookingExhibitionRequestDto) requestDto.bookingDetailRequest();
-        ExhibitionBookingDetail payload =
-                new ExhibitionBookingDetail(ServiceType.EXHIBITION,exhibitionRequest.grade(), exhibitionRequest.price());
-        payloadList.add(payload);
-
-        bookingDetailService.createBookingDetail(booking.getId(),payloadList);
-
-        // 4) 업데이트
-        bookingService.confirmBooking(booking.getId());
-        booking = bookingService.getBookingById(booking.getId());
-
-        return BookingCreateResponseDto.from(booking);
     }
 
     public BookingCreateResponseDto orchestrateRestaurantBooking(BookingRequestDto requestDto) {
@@ -260,10 +260,10 @@ public class BookingOrchestrator {
         ApiResponse<SeatAvailabilityDto> seatAvailabilityDto
                 = restaurantClient.getSeats(restaurantRequest.restaurantId(), restaurantRequest.date());
         if (seatAvailabilityDto.getData().getAvailableSeats() < customerCount) {
-            throw new IllegalStateException("예약할 좌석이 부족합니다.");
+            throw new CustomException(ErrorCode.SEAT_NOT_AVAILABLE);
         }
 
-        // 1-2) 예약중 생성
+        // 2) 예약중 생성
         BookingCreateRequestDto createRequestDto = new BookingCreateRequestDto(
                 requestDto.userId()
                 , requestDto.serviceId()
@@ -271,42 +271,64 @@ public class BookingOrchestrator {
                 , requestDto.totalFee()
                 , requestDto.status());
         Booking booking = bookingService.createOrchestrationBooking(createRequestDto);
+        Long paymentId = null;
 
-        // 2) 결제
-        PaymentCreateRequestDto paymentCreateRequestDto
-                = new PaymentCreateRequestDto(booking.getId(), PaymentStatus.PENDING, requestDto.totalFee());
-        ApiResponse<PaymentRequestResponseDto> response = paymentClient.requestPayment(paymentCreateRequestDto);
-        if (!response.getData().paymentStatus().equals(PaymentStatus.COMPLETED)) {
-            // 결제 실패 -> 보상
-            //compensateOnPaymentFailure(booking, lockedKeys, payResult);
-            throw new IllegalStateException("결제 실패: 결제가 실패되었습니다. ");
+        try {
+            // 3) 결제
+            PaymentCreateRequestDto paymentCreateRequestDto
+                    = new PaymentCreateRequestDto(booking.getId(), PaymentStatus.PENDING, requestDto.totalFee());
+            ApiResponse<PaymentRequestResponseDto> response = paymentClient.requestPayment(paymentCreateRequestDto);
+            if (!response.getData().paymentStatus().equals(PaymentStatus.COMPLETED)) {
+                throw new CustomException(ErrorCode.PAYMENT_FAILED);
+            }
+
+            paymentId = response.getData().paymentId();
+
+            // 4) 레스토랑 서비스에 좌석 예약 확정
+            SeatsRequestDto seatsRequestDto = new SeatsRequestDto();
+            seatsRequestDto.setRestaurantId(restaurantRequest.restaurantId());
+            seatsRequestDto.setDate(restaurantRequest.date());
+            seatsRequestDto.setCount(customerCount);
+            restaurantClient.reserveSeats(seatsRequestDto);
+
+            // 5) 디테일 생성
+            List<BookingDetailPayload> payloadList = new ArrayList<>();
+            RestaurantBookingDetail payload =
+                    new RestaurantBookingDetail(
+                            ServiceType.RESTAURANT,
+                            restaurantRequest.date(),
+                            restaurantRequest.time(),
+                            restaurantRequest.customer());
+            payloadList.add(payload);
+            bookingDetailService.createBookingDetail(booking.getId(),payloadList);
+
+            bookingService.confirmBooking(booking.getId());
+            booking = bookingService.getBookingById(booking.getId());
+
+
+            return BookingCreateResponseDto.from(booking);
+
         }
+        catch (Exception ex) {
+            log.error("레스토랑 예약 실패: bookingId={}, userId={}, error={}",
+                    booking.getId(), requestDto.userId(), ex.getMessage(), ex);
 
-        // 3) 디테일 생성
-        List<BookingDetailPayload> payloadList = new ArrayList<>();
-        RestaurantBookingDetail payload =
-                new RestaurantBookingDetail(
-                        ServiceType.RESTAURANT,
-                        restaurantRequest.date(),
-                        restaurantRequest.time(),
-                        restaurantRequest.customer());
-        payloadList.add(payload);
-        bookingDetailService.createBookingDetail(booking.getId(),payloadList);
+            if (paymentId != null) {
+                log.warn("보상: 결제 취소 시도. paymentId: {}", paymentId);
+                // TODO: paymentClient.cancelPayment(paymentId) 구현 필요
+            }
 
+            bookingService.updateBookingStatus(booking.getId(), BookingStatus.CANCELLED);
 
-        // 4) 정보 업데이트
-        SeatsRequestDto seatsRequestDto = new SeatsRequestDto();
-        seatsRequestDto.setRestaurantId(restaurantRequest.restaurantId());
-        seatsRequestDto.setDate(LocalDate.now());
-        seatsRequestDto.setCount(customerCount);
-        restaurantClient.reserveSeats(seatsRequestDto);
+            if (ex instanceof CustomException) {
+                throw ex;
+            }
+            throw new CustomException(ErrorCode.INTERNAL_SERVER_ERROR, ex.getMessage());
 
-        bookingService.confirmBooking(booking.getId());
-        booking = bookingService.getBookingById(booking.getId());
-
-
-        return BookingCreateResponseDto.from(booking);
+        }
     }
+
+
 
 
         // -------------------------
@@ -334,8 +356,6 @@ public class BookingOrchestrator {
             return lockedKeys;
         }
 
-
-
         private void writeBookingIdToLocks (List < String > keys, Long bookingId){
             String bookingIdStr = String.valueOf(bookingId);
             for (String key : keys) {
@@ -356,50 +376,4 @@ public class BookingOrchestrator {
                 log.warn("Redis delete keys failed: {}, err={}", keys, e.getMessage());
             }
         }
-
-        // -------------------------
-        // Compensation handlers
-        // -------------------------
-
-        private void compensateOnPaymentFailure (Booking
-        booking, List < String > lockedKeys, PaymentClasdasdsaient.PaymentResult payResult){
-            // 예약 취소
-            if (booking != null) {
-                try {
-                    //bookingService.cancelBooking(booking.getId());
-                } catch (Exception e) {
-                    log.error("예약 취소 실패 during payment compensation, bookingId={}, err={}", booking.getId(), e.getMessage());
-                }
-            }
-
-            // Redis 해제
-            releaseKeys(lockedKeys);
-
-            // 부분 결제 등 capture가 발생했으면 환불 시도
-            if (payResult != null && payResult.isPartialCaptured()) {
-                try {
-                    //paymentClient.refund(booking.getId());
-                } catch (Exception e) {
-                    log.error("refund failed for bookingId={}, err={}", booking.getId(), e.getMessage());
-                }
-            }
-        }
-
-        private void compensateOnSeatMarkFailure (Booking booking, List < String > lockedKeys){
-            // 좌석 확정 실패: 결제 성공 상태라면 환불 시도
-            if (booking != null) {
-                try {
-                    //paymentClient.refund(booking.getId());
-                } catch (Exception e) {
-                    log.error("refund failed during seatMark compensation, bookingId={}, err={}", booking.getId(), e.getMessage());
-                }
-                try {
-                    //bookingService.cancelBooking(booking.getId());
-                } catch (Exception e) {
-                    log.error("booking cancel failed during seatMark compensation, bookingId={}, err={}", booking.getId(), e.getMessage());
-                }
-            }
-            releaseKeys(lockedKeys);
-        }
-
     }
