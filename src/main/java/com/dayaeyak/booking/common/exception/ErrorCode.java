@@ -30,7 +30,15 @@ public enum ErrorCode {
     PAYMENT_FAILED(HttpStatus.BAD_REQUEST, "결제에 실패했습니다."),
     INSUFFICIENT_SEATS(HttpStatus.CONFLICT, "좌석이 부족합니다."),
 
-    SEAT_NOT_AVAILABLE(HttpStatus.NOT_FOUND, "좌석이 충분하지 않습니다.");
+    SEAT_NOT_AVAILABLE(HttpStatus.NOT_FOUND, "좌석이 충분하지 않습니다."),
+
+    CANCELLATION_PERIOD_EXPIRED(HttpStatus.NOT_FOUND, " 취소 기간이 만료되었습니다."),
+    ALREADY_CANCELLED_BOOKING(HttpStatus.NOT_FOUND, " 이미 취소된 예약입니다."),
+
+    //AuthorizationErrorCode
+    INVALID_USER_ID(HttpStatus.BAD_REQUEST, "유효하지 않은 유저 ID입니다."),
+    INVALID_USER_ROLE(HttpStatus.BAD_REQUEST, "유효하지 않은 유저 권한입니다."),
+    REQUEST_ACCESS_DENIED(HttpStatus.FORBIDDEN, "요청 접근 권한이 부족합니다.");
 
 
     private final HttpStatus status;
