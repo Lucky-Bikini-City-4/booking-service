@@ -6,5 +6,5 @@ import java.util.List;
 
 public record BookingDetailUpdateRequestDto(
         Long bookingId,
-        List<BookingDetailPayload> details
+        BookingDetailPayload details
 ) {}

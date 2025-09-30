@@ -20,7 +20,6 @@ public class BookingDetailService {
 
     private final BookingDetailRepository bookingDetailRepository;
 
-    // Modified private helper method to include bookingId validation
     private BookingDetail findBookingDetail(Long bookingId, Long id) {
         BookingDetail bookingDetail = bookingDetailRepository.findById(id)
                 .orElseThrow(() -> new CustomException(ErrorCode.BOOKING_DETAIL_NOT_FOUND));
@@ -31,24 +30,25 @@ public class BookingDetailService {
     }
 
     @Transactional
-    public BookingDetailCreateResponseDto createBookingDetail(Long bookingId, List<BookingDetailPayload> specificPayloads) { // Modified signature
+    public BookingDetailCreateResponseDto createBookingDetail(Long bookingId, BookingDetailPayload specificPayload) { // Modified signature
         if (!bookingDetailRepository.findByBookingId(bookingId).isEmpty()) {
             throw new CustomException(ErrorCode.DUPLICATE_BOOKING_DETAIL);
         }
         BookingDetail bookingDetail = new BookingDetail(); // Create new BookingDetail
         bookingDetail.setBookingId(bookingId); // Set bookingId
-        bookingDetail.setDetails(specificPayloads); // Set specificPayloads
+        bookingDetail.setDetails(specificPayload); // Set specificPayloads
         bookingDetailRepository.save(bookingDetail);
         return BookingDetailCreateResponseDto.from(bookingDetail);
     }
 
-    public BookingDetailFindResponseDto findBookingDetailById(Long bookingId, Long id) {
-        BookingDetail bookingDetail = findBookingDetail(bookingId, id);
+    public BookingDetailFindResponseDto findBookingDetailById(Long bookingId, Long detailId) {
+        BookingDetail bookingDetail = findBookingDetail(bookingId, detailId);
         return BookingDetailFindResponseDto.from(bookingDetail);
     }
 
     public List<BookingDetailFindResponseDto> findAllBookingDetailsByBookingId(Long bookingId) {
-        return bookingDetailRepository.findByBookingId(bookingId)
+        return  bookingDetailRepository
+                .findByBookingId(bookingId)
                 .stream()
                 .map(BookingDetailFindResponseDto::from)
                 .collect(Collectors.toList());
@@ -64,5 +64,9 @@ public class BookingDetailService {
     public void deleteBookingDetail(Long bookingId, Long id) {
         BookingDetail bookingDetail = findBookingDetail(bookingId, id);
         bookingDetail.delete();
+    }
+
+    public List<BookingDetail> findBookingDetailByBookingId(Long bookingId) {
+        return bookingDetailRepository.findByBookingId(bookingId);
     }
 }

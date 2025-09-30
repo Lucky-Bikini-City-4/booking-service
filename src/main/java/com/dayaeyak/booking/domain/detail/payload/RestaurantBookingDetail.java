@@ -11,7 +11,6 @@ import java.time.LocalTime;
 
 
 public record RestaurantBookingDetail(
-        ServiceType type,
         LocalDate date,
         LocalTime time,
         int guestCount

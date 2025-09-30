@@ -10,7 +10,6 @@ import lombok.Setter;
 
 
 public record ExhibitionBookingDetail(
-        ServiceType type,
         Grade grade,
         int price
 

@@ -9,7 +9,8 @@ import java.util.List;
 public record BookingDetailFindResponseDto(
         Long id,
         Long bookingId,
-        List<BookingDetailPayload>   details,
+        //List<BookingDetailPayload>   details,
+        BookingDetailPayload details,
         LocalDateTime createdAt,
         LocalDateTime updatedAt,
         LocalDateTime deletedAt
@@ -18,7 +19,7 @@ public record BookingDetailFindResponseDto(
         return new BookingDetailFindResponseDto(
                 bookingDetail.getId(),
                 bookingDetail.getBookingId(),
-                bookingDetail.getDetails(),
+                (BookingDetailPayload) bookingDetail.getDetails(),
                 bookingDetail.getCreatedAt(),
                 bookingDetail.getUpdatedAt(),
                 bookingDetail.getDeletedAt()

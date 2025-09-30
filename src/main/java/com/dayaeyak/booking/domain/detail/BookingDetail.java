@@ -1,7 +1,6 @@
 package com.dayaeyak.booking.domain.detail;
 
-import com.dayaeyak.booking.common.entuty.BaseEntity;
-import com.dayaeyak.booking.domain.detail.dto.request.BookingDetailCreateRequestDto;
+import com.dayaeyak.booking.common.entity.BaseEntity;
 import com.dayaeyak.booking.domain.detail.dto.request.BookingDetailUpdateRequestDto;
 import com.dayaeyak.booking.domain.detail.payload.BookingDetailPayload;
 import jakarta.persistence.*;
@@ -25,14 +24,15 @@ public class BookingDetail extends BaseEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(nullable = false, updatable = false)
-    private long id;
+    private Long id;
 
     @Column(name = "booking_id", nullable = false,unique = true)
     private Long bookingId;
 
     @Type(JsonType.class)
     @Column(name = "details", columnDefinition = "json")
-    private List<BookingDetailPayload> details;
+    //private BookingDetailPayload details;
+    private BookingDetailPayload details;
 
     public void update(BookingDetailUpdateRequestDto requestDto) {
         if (requestDto.bookingId() != null) {
