@@ -1,5 +1,7 @@
 package com.dayaeyak.booking.domain.detail;
 
+import com.dayaeyak.booking.annotation.Authorize;
+import com.dayaeyak.booking.common.enums.UserRole;
 import com.dayaeyak.booking.common.exception.CustomException;
 import com.dayaeyak.booking.common.exception.ErrorCode;
 import com.dayaeyak.booking.domain.booking.Booking;
@@ -68,7 +70,7 @@ public class BookingDetailController {
         }
         return ApiResponse.success(HttpStatus.CREATED,
                 "예약 상세 정보가 생성되었습니다",
-                bookingDetailService.createBookingDetail(bookingId,specificPayloads));
+                bookingDetailService.createBookingDetail(bookingId, (BookingDetailPayload) specificPayloads));
     }
 
     @GetMapping("/{detailId}")
@@ -78,12 +80,14 @@ public class BookingDetailController {
         return ApiResponse.success(HttpStatus.OK, bookingDetailService.findBookingDetailById(bookingId,detailId));
     }
 
+    @Authorize(roles = { UserRole.MASTER})
     @GetMapping
     public ResponseEntity<ApiResponse<List<BookingDetailFindResponseDto>>> findAllBookingDetails(
             @PathVariable Long bookingId) {
         return ApiResponse.success(HttpStatus.OK, bookingDetailService.findAllBookingDetailsByBookingId(bookingId));
     }
 
+    @Authorize(roles = { UserRole.MASTER})
     @PatchMapping("/{detailId}")
     public ResponseEntity<ApiResponse<Void>> updateBookingDetail(
             @PathVariable Long bookingId,
@@ -94,6 +98,7 @@ public class BookingDetailController {
 
     }
 
+    @Authorize(roles = { UserRole.MASTER})
     @DeleteMapping("/{detailId}")
     public ResponseEntity<ApiResponse<Void>> deleteBookingDetail(
             @PathVariable Long bookingId,
