@@ -46,6 +46,11 @@ dependencies {
 	implementation 'org.springframework.kafka:spring-kafka'
 	testImplementation 'org.springframework.kafka:spring-kafka-test'
 
+	implementation 'io.micrometer:micrometer-tracing-bridge-brave'
+	implementation 'io.zipkin.reporter2:zipkin-reporter-brave'
+
+
+
 
 	// Add hibernate-types dependency for JSON type handling
     implementation 'com.vladmihalcea:hibernate-types-60:2.21.1' // For Hibernate 6
