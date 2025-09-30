@@ -1,9 +1,9 @@
 package com.dayaeyak.booking.config;
-
 import com.dayaeyak.booking.domain.booking.dto.kafka.BookingCancelRequestDto;
 import com.dayaeyak.booking.domain.booking.dto.kafka.BookingRequestKafkaDto;
 import com.dayaeyak.booking.domain.booking.dto.kafka.RestaurantBookCancelDto;
 import com.dayaeyak.booking.domain.booking.dto.kafka.RestaurantBookConfirmDto;
+import com.dayaeyak.booking.domain.booking.dto.request.BookingPerformanceRequestDto;
 import com.dayaeyak.booking.domain.booking.dto.request.BookingRequestDto;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.common.serialization.StringSerializer;
@@ -18,7 +18,8 @@ import java.util.Map;
 @Configuration
 public class KafkaProducerConfig {
 
-    private final String SERVER = "localhost:9092";
+    //private final String SERVER = "localhost:9092";
+    private final String SERVER = "13.209.66.160:9092";
 
     @Bean
     public Map<String, Object> getStringObjectMap() {
@@ -73,6 +74,18 @@ public class KafkaProducerConfig {
     @Bean
     public KafkaTemplate<String, RestaurantBookCancelDto> kafkaTemplateRBCa() {
         return new KafkaTemplate<>(ProducerFactorRBCa());
+    }
+
+    // BookingPerformanceRequestDto를 위한 ProducerFactory
+    @Bean
+    public ProducerFactory<String, BookingRequestDto> ProducerFactoryBPR() {
+        return new DefaultKafkaProducerFactory<>(producerConfigs());
+    }
+
+    // BookingPerformanceRequestDto를 위한 KafkaTemplate
+    @Bean
+    public KafkaTemplate<String, BookingRequestDto> kafkaTemplateBPR() {
+        return new KafkaTemplate<>(ProducerFactoryBPR());
     }
 
     @Bean

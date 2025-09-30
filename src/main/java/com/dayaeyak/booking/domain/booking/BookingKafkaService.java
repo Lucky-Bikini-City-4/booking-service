@@ -4,12 +4,16 @@ import com.dayaeyak.booking.domain.booking.dto.kafka.BookingCancelRequestDto;
 import com.dayaeyak.booking.domain.booking.dto.kafka.BookingRequestKafkaDto;
 import com.dayaeyak.booking.domain.booking.dto.kafka.RestaurantBookCancelDto;
 import com.dayaeyak.booking.domain.booking.dto.kafka.RestaurantBookConfirmDto;
+import com.dayaeyak.booking.domain.booking.dto.request.BookingPerformanceRequestDto;
+import com.dayaeyak.booking.domain.booking.dto.request.BookingRequestDto;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class BookingKafkaService {
     private final KafkaTemplate<String, BookingRequestKafkaDto> kafkaTemplateBR; // Booking Request
     private final KafkaTemplate<String, BookingCancelRequestDto> kafkaTemplateBCR; // Booking Cancel Request
@@ -30,5 +34,13 @@ public class BookingKafkaService {
 
     public void sendBookingRestaurantCancel (String topic, String key, RestaurantBookCancelDto dto) {
         kafkaTemplateRBCa.send(topic, key, dto);
+    }
+
+    private final KafkaTemplate<String, BookingRequestDto> kafkaTemplate;
+    private static final String TOPIC = "booking-complete";
+
+    public void send(BookingRequestDto dto) {
+        log.info("Sending seat update message: {}", dto);
+        kafkaTemplate.send(TOPIC, dto);
     }
 }
