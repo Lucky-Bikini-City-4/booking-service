@@ -1,13 +1,13 @@
 package com.dayaeyak.booking.domain.booking;
 
-import com.dayaeyak.booking.domain.booking.dto.request.BookingCreateRequestDto;
-import com.dayaeyak.booking.domain.booking.dto.request.BookingFindByServiceDto;
-import com.dayaeyak.booking.domain.booking.dto.request.BookingUpdateRequestDto;
+import com.dayaeyak.booking.annotation.Authorize;
+import com.dayaeyak.booking.common.enums.UserRole;
+import com.dayaeyak.booking.domain.booking.dto.request.*;
 import com.dayaeyak.booking.domain.booking.dto.response.BookingCreateResponseDto;
 import com.dayaeyak.booking.domain.booking.dto.response.BookingFindResponseDto;
-import com.dayaeyak.booking.domain.booking.enums.ServiceType;
+import com.dayaeyak.booking.orchestration.BookingOrchestrator;
 import com.dayaeyak.booking.utils.ApiResponse;
-import jakarta.transaction.Transactional;
+
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -21,6 +21,7 @@ import java.util.List;
 public class BookingController {
 
     private final BookingService bookingService;
+    private final BookingOrchestrator bookingOrchestrator;
 
     @PostMapping
     public ResponseEntity<ApiResponse<BookingCreateResponseDto>> createBooking(
@@ -35,11 +36,13 @@ public class BookingController {
         return ApiResponse.success(HttpStatus.OK, bookingService.findBookingById(bookingId));
     }
 
+    @Authorize(roles = { UserRole.MASTER})
     @GetMapping
     public ResponseEntity<ApiResponse<List<BookingFindResponseDto>>> findBookings(){
         return ApiResponse.success(HttpStatus.OK, bookingService.findBookings());
     }
 
+    @Authorize(roles = { UserRole.MASTER})
     @PatchMapping("/{bookingId}")
     public ResponseEntity<ApiResponse<BookingFindResponseDto>> updateBooking(
             @PathVariable Long bookingId, @RequestBody BookingUpdateRequestDto requestDto) {
@@ -47,6 +50,14 @@ public class BookingController {
         return ApiResponse.success(HttpStatus.OK,"수정이 완료되었습니다" );
     }
 
+    @Authorize(roles = { UserRole.MASTER})
+    @PostMapping("/cancel/{bookingId}")
+    public ResponseEntity<ApiResponse<BookingFindResponseDto>> cancelBooking(@PathVariable Long bookingId) {
+        bookingService.cancelBooking(bookingId);
+        return ApiResponse.success(HttpStatus.OK,"취소가 완료되었습니다" );
+    }
+
+    @Authorize(roles = { UserRole.MASTER})
     @DeleteMapping("/{bookingId}")
     public ResponseEntity<ApiResponse<BookingFindResponseDto>> deleteBooking(@PathVariable Long bookingId) {
         bookingService.deleteBooking(bookingId);
@@ -59,6 +70,13 @@ public class BookingController {
         return ApiResponse.success(HttpStatus.OK, bookingService.findBookingsByService(requestDto));
 
     }
+
+    @PostMapping("/orchestration")
+    public ResponseEntity<ApiResponse<BookingCreateResponseDto>> orchestration(
+            @RequestBody BookingRequestDto requestDto){
+        return ApiResponse.success(HttpStatus.OK, bookingOrchestrator.orchestrateBooking(requestDto));
+    }
+
 
 
 

@@ -1,4 +1,4 @@
-package com.dayaeyak.booking.common.entuty;
+package com.dayaeyak.booking.common.entity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.EntityListeners;

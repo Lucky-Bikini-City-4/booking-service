@@ -1,9 +1,12 @@
 package com.dayaeyak.booking.domain.booking;
 
-import com.dayaeyak.booking.common.entuty.BaseEntity;
+import com.dayaeyak.booking.common.entity.BaseEntity;
+import com.dayaeyak.booking.common.exception.CustomException;
+import com.dayaeyak.booking.common.exception.ErrorCode;
 import com.dayaeyak.booking.domain.booking.dto.request.BookingCreateRequestDto;
 import com.dayaeyak.booking.domain.booking.dto.request.BookingUpdateRequestDto;
 import jakarta.persistence.*;
+import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -13,7 +16,7 @@ import java.time.LocalDateTime;
 
 @Getter
 @Setter
-@NoArgsConstructor
+@NoArgsConstructor(access = AccessLevel.PUBLIC)
 @Table(name = "bookings")
 @Entity
 public class Booking extends BaseEntity {
@@ -50,9 +53,16 @@ public class Booking extends BaseEntity {
         this.totalFee = requestDto.totalFee();
         this.status = requestDto.status();
         this.cancelDeadline = LocalDateTime.now().plusDays(3);;
-        this.createdAt = LocalDateTime.now();
-        this.updatedAt = LocalDateTime.now();
     }
+
+//    public Booking(BookingPerformanceRequestDto requestDto) {
+//        this.userId = requestDto.userId();
+//        this.serviceId = requestDto.serviceId();
+//        this.serviceType = requestDto.serviceType();
+//        this.totalFee = requestDto.totalFee();
+//        this.status = requestDto.status();
+//        this.cancelDeadline = LocalDateTime.now().plusDays(3);;
+//    }
 
     public void update(BookingUpdateRequestDto requestDto) {
         if (requestDto.userId() != null) {
@@ -74,9 +84,21 @@ public class Booking extends BaseEntity {
             this.cancelDeadline = requestDto.cancelDeadline();
         }
         this.updatedAt = LocalDateTime.now();
-
-
     }
+
+    public void cancel(){
+        if (LocalDateTime.now().isAfter(this.cancelDeadline)) {
+            throw new CustomException(ErrorCode.CANCELLATION_PERIOD_EXPIRED); // 예시 ErrorCode, 추가 필요
+        }
+
+        if (this.status == BookingStatus.CANCELLED) {
+            throw new CustomException(ErrorCode.ALREADY_CANCELLED_BOOKING); // 예시 ErrorCode, 추가 필요
+        }
+
+        this.status = BookingStatus.CANCELLED;
+    }
+
+
 
 
 

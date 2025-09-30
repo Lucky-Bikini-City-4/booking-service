@@ -1,5 +1,8 @@
 package com.dayaeyak.booking.domain.detail.payload;
 
+import com.dayaeyak.booking.domain.booking.dto.request.BookingExhibitionRequestDto;
+import com.dayaeyak.booking.domain.booking.dto.request.BookingPerformanceRequestDto;
+import com.dayaeyak.booking.domain.booking.dto.request.BookingRestaurantRequestDto;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 

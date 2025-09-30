@@ -1,5 +1,7 @@
 package com.dayaeyak.booking.domain.detail;
 
+import com.dayaeyak.booking.common.exception.CustomException;
+import com.dayaeyak.booking.common.exception.ErrorCode;
 import com.dayaeyak.booking.domain.detail.dto.request.BookingDetailCreateRequestDto;
 import com.dayaeyak.booking.domain.detail.dto.request.BookingDetailUpdateRequestDto;
 import com.dayaeyak.booking.domain.detail.dto.response.BookingDetailCreateResponseDto;
@@ -18,12 +20,11 @@ public class BookingDetailService {
 
     private final BookingDetailRepository bookingDetailRepository;
 
-    // Modified private helper method to include bookingId validation
     private BookingDetail findBookingDetail(Long bookingId, Long id) {
         BookingDetail bookingDetail = bookingDetailRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("BookingDetail을 찾을 수 없습니다: " + id));
+                .orElseThrow(() -> new CustomException(ErrorCode.BOOKING_DETAIL_NOT_FOUND));
         if (!bookingDetail.getBookingId().equals(bookingId)) {
-            throw new IllegalArgumentException("BookingDetail with ID " + id + " does not belong to Booking ID " + bookingId);
+            throw new CustomException(ErrorCode.INVALID_INPUT_VALUE);
         }
         return bookingDetail;
     }
@@ -31,22 +32,23 @@ public class BookingDetailService {
     @Transactional
     public BookingDetailCreateResponseDto createBookingDetail(Long bookingId, BookingDetailPayload specificPayload) { // Modified signature
         if (!bookingDetailRepository.findByBookingId(bookingId).isEmpty()) {
-            throw new IllegalArgumentException("Booking ID " + bookingId + " already has a detail.");
+            throw new CustomException(ErrorCode.DUPLICATE_BOOKING_DETAIL);
         }
         BookingDetail bookingDetail = new BookingDetail(); // Create new BookingDetail
         bookingDetail.setBookingId(bookingId); // Set bookingId
-        bookingDetail.setDetails(specificPayload); // Set specificPayload
+        bookingDetail.setDetails(specificPayload); // Set specificPayloads
         bookingDetailRepository.save(bookingDetail);
         return BookingDetailCreateResponseDto.from(bookingDetail);
     }
 
-    public BookingDetailFindResponseDto findBookingDetailById(Long bookingId, Long id) {
-        BookingDetail bookingDetail = findBookingDetail(bookingId, id);
+    public BookingDetailFindResponseDto findBookingDetailById(Long bookingId, Long detailId) {
+        BookingDetail bookingDetail = findBookingDetail(bookingId, detailId);
         return BookingDetailFindResponseDto.from(bookingDetail);
     }
 
     public List<BookingDetailFindResponseDto> findAllBookingDetailsByBookingId(Long bookingId) {
-        return bookingDetailRepository.findByBookingId(bookingId)
+        return  bookingDetailRepository
+                .findByBookingId(bookingId)
                 .stream()
                 .map(BookingDetailFindResponseDto::from)
                 .collect(Collectors.toList());
@@ -62,5 +64,9 @@ public class BookingDetailService {
     public void deleteBookingDetail(Long bookingId, Long id) {
         BookingDetail bookingDetail = findBookingDetail(bookingId, id);
         bookingDetail.delete();
+    }
+
+    public List<BookingDetail> findBookingDetailByBookingId(Long bookingId) {
+        return bookingDetailRepository.findByBookingId(bookingId);
     }
 }
