@@ -1,8 +1,9 @@
 package com.dayaeyak.booking.domain.booking;
 
-import com.dayaeyak.booking.common.entuty.BaseEntity;
+import com.dayaeyak.booking.common.entity.BaseEntity;
+import com.dayaeyak.booking.common.exception.CustomException;
+import com.dayaeyak.booking.common.exception.ErrorCode;
 import com.dayaeyak.booking.domain.booking.dto.request.BookingCreateRequestDto;
-import com.dayaeyak.booking.domain.booking.dto.request.BookingPerformanceRequestDto;
 import com.dayaeyak.booking.domain.booking.dto.request.BookingUpdateRequestDto;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
@@ -83,9 +84,21 @@ public class Booking extends BaseEntity {
             this.cancelDeadline = requestDto.cancelDeadline();
         }
         this.updatedAt = LocalDateTime.now();
-
-
     }
+
+    public void cancel(){
+        if (LocalDateTime.now().isAfter(this.cancelDeadline)) {
+            throw new CustomException(ErrorCode.CANCELLATION_PERIOD_EXPIRED); // 예시 ErrorCode, 추가 필요
+        }
+
+        if (this.status == BookingStatus.CANCELLED) {
+            throw new CustomException(ErrorCode.ALREADY_CANCELLED_BOOKING); // 예시 ErrorCode, 추가 필요
+        }
+
+        this.status = BookingStatus.CANCELLED;
+    }
+
+
 
 
 
